@@ -1,29 +1,57 @@
 package main
 
 import (
+	"../convertapi-go"
+	"bufio"
 	"errors"
 	"fmt"
-	"github.com/ConvertAPI/convertapi-go"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 )
 
-type caParams []*convertapi.Param
-type caConversions []*caParams
-
-func parseParams(paramString string) (paramMap map[string]string) {
-	paramMap = make(map[string]string)
+func parseParams(paramString string, ext string) (paramsets [][]*convertapi.Param, err error) {
+	var newParams []*convertapi.Param
+	var parallel bool
 	for _, p := range strings.Split(paramString, ",") {
 		kv := strings.Split(p, ":")
-		paramMap[strings.TrimSpace(kv[0])] = strings.TrimSpace(kv[1])
+		k := strings.TrimSpace(kv[0])
+		v := strings.TrimSpace(kv[1])
+		if newParams, parallel, err = newCaParams(k, v, ext); err != nil {
+			return
+		}
+		paramsets = mergeParams(paramsets, newParams, parallel)
 	}
 	return
 }
 
-func newCaParams(k string, v string, inf string) (caParams []*convertapi.Param, parallel bool, err error) {
+func mergeParams(paramsets [][]*convertapi.Param, params []*convertapi.Param, parallel bool) (res [][]*convertapi.Param) {
+	if params == nil || len(params) == 0 {
+		return paramsets
+	}
+	if parallel {
+		for _, param := range params {
+			if paramsets == nil || len(paramsets) == 0 {
+				res = append(res, []*convertapi.Param{param})
+			}
+			for _, set := range paramsets {
+				mergedSet := append(set, param)
+				res = append(res, mergedSet)
+			}
+		}
+	} else {
+		if paramsets == nil || len(paramsets) == 0 {
+			return [][]*convertapi.Param{params}
+		}
+		for i, set := range paramsets {
+			res[i] = append(set, params...)
+		}
+	}
+	return
+}
+
+func newCaParams(k string, v string, ext string) (caParams []*convertapi.Param, parallel bool, err error) {
 	parallel = !strings.HasSuffix(k, "[]")
 	if !parallel {
 		k = strings.TrimSuffix(k, "[]")
@@ -39,7 +67,9 @@ func newCaParams(k string, v string, inf string) (caParams []*convertapi.Param, 
 			paths = strings.Split(v, ";")
 		}
 
-		paths, err = inFlatten(paths, inf)
+		if paths, err = flattenPaths(paths, ext); err != nil {
+			return
+		}
 
 		for i, p := range paths {
 			name := k
@@ -49,52 +79,54 @@ func newCaParams(k string, v string, inf string) (caParams []*convertapi.Param, 
 			caParam := convertapi.NewFilePathParam(name, p, nil)
 			caParams = append(caParams, caParam)
 		}
-	} else if strings.HasPrefix(v, "<") {
-		if strings.HasPrefix(v, "<<") {
-			caParam := convertapi.NewReaderParam(k, os.Stdin, "file."+inf, nil)
-			caParams = append(caParams, caParam)
+	} else if strings.HasPrefix(v, "<<") {
+		caParam := convertapi.NewReaderParam(k, os.Stdin, "file."+ext, nil)
+		caParams = append(caParams, caParam)
+	} else {
+		var vals []string
+		if strings.HasPrefix(v, "<") {
+			vals, err = stdinLines()
 		} else {
-			var urls []string
-			urls, err = stdinLines()
-			for i, url := range urls {
-				name := k
-				if !parallel {
-					name = fmt.Sprintf("%s[%d]", k, i)
-				}
-				caParam := convertapi.NewStringParam(name, url)
-				caParams = append(caParams, caParam)
+			vals = []string{v}
+		}
+
+		for i, val := range vals {
+			name := k
+			if !parallel {
+				name = fmt.Sprintf("%s[%d]", k, i)
 			}
+			caParam := convertapi.NewStringParam(name, val)
+			caParams = append(caParams, caParam)
 		}
 	}
 	return
 }
 
 func stdinLines() (lines []string, err error) {
-	b := []byte{}
-	if b, err = ioutil.ReadAll(os.Stdin); err == nil {
-		lines = strings.Split(string(b), "\n")
+	s := bufio.NewScanner(os.Stdin)
+	for s.Scan() {
+		lines = append(lines, s.Text())
 	}
 	return
 }
 
-func inFlatten(paths []string, inf string) (res []string, err error) {
-	var flat []string
+func flattenPaths(paths []string, ext string) (res []string, err error) {
+	flat := []string{}
 	for _, p := range paths {
-		if flat, err = inDirToFiles(p, inf); err == nil {
-			res = append(res, flat...)
-		} else {
+		if flat, err = dirToFiles(p, ext); err != nil {
 			return
 		}
-
+		res = append(res, flat...)
 	}
+	return
 }
 
-func inDirToFiles(path string, inf string) (paths []string, err error) {
+func dirToFiles(path string, ext string) (paths []string, err error) {
 	dir, err := isDir(path)
 	if err == nil {
 		if dir {
 			paths = []string{}
-			wildcardPath := filepath.Join(path, "*."+inf)
+			wildcardPath := filepath.Join(path, "*."+ext)
 			files, err := filepath.Glob(wildcardPath)
 			if err == nil {
 				for _, f := range files {
@@ -103,17 +135,20 @@ func inDirToFiles(path string, inf string) (paths []string, err error) {
 			}
 			sort.Strings(paths)
 		} else {
-			if strings.EqualFold(filepath.Ext(path), "."+inf) {
+			if strings.EqualFold(filepath.Ext(path), "."+ext) {
 				paths = []string{path}
 			} else {
-				err = errors.New(fmt.Sprintf("File %s is not %s format.", path, inf))
+				err = errors.New(fmt.Sprintf("File %s is not %s format.", path, ext))
 			}
 		}
 	}
 	return
 }
 
-func isDir(path string) (bool, error) {
+func isDir(path string) (isDir bool, err error) {
 	info, err := os.Stat(path)
-	return info.IsDir(), err
+	if err == nil {
+		isDir = info.IsDir()
+	}
+	return
 }

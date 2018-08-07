@@ -1,10 +1,10 @@
 package main
 
 import (
+	"../convertapi-go"
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/ConvertAPI/convertapi-go"
 	"os"
 )
 
@@ -35,28 +35,39 @@ func main() {
 	if *outfF == "" {
 		printError(errors.New("Output format is not set. Please set --outf"), 1)
 	}
-	if *paramsF == "" {
-		printError(errors.New("Conversion parameters are not set. Please set --params parameter."), 1)
-	} else {
-		params := parseParams(*paramsF)
-		fmt.Println(params["name"])
+	if *proxyF != "" { /*TODO: set proxy*/
 	}
+
 	if *secretF == "" {
 		printError(errors.New("ConvertAPI user secret is not set. Please set --secret parameter. Get your secret at https://www.convertapi.com/a"), 1)
 	} else {
 		convertapi.Default.Secret = *secretF
 	}
 
-	if *proxyF != "" {
-		//TODO: set proxy
+	if *paramsF == "" {
+		printError(errors.New("Conversion parameters are not set. Please set --params parameter."), 1)
+	} else {
+		if paramsets, err := parseParams(*paramsF, *infF); err == nil {
+			fmt.Printf("%+v\n", paramsets)
+			var conv []*convertapi.Result
+			for _, set := range paramsets {
+				conv = append(conv, convertapi.Convert(*infF, *outfF, set, nil))
+			}
+			fmt.Println("Konvertinam")
+			for _, res := range conv {
+				_, err := res.ToPath("/tmp")
+				fmt.Println(err)
+			}
+			fmt.Println("DONE")
+		} else {
+			printError(fmt.Errorf("Conversion parameters are invalid. %s", err), 1)
+		}
 	}
-
-	printError(errors.New("No arguments set"), 1)
 }
 
 func printError(err error, exitCode int) {
-	fmt.Printf("%s: %s\n", Name, err)
-	fmt.Printf("Try '%s --%s' for more information.", Name, HelpFlagName)
+	fmt.Fprintf(os.Stderr, "%s: %s\n", Name, err)
+	fmt.Fprintf(os.Stderr, "Try '%s --%s' for more information.\n", Name, HelpFlagName)
 	os.Exit(exitCode)
 }
 
@@ -66,7 +77,7 @@ func printHelp() {
 }
 
 func printVersion() {
-	fmt.Sprintf("%s %d", Name, Version)
+	fmt.Printf("%s %d\n", Name, Version)
 	os.Exit(0)
 }
 
