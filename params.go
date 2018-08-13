@@ -1,18 +1,18 @@
 package main
 
 import (
-	"../convertapi-go"
 	"bufio"
 	"errors"
 	"fmt"
+	"github.com/ConvertAPI/convertapi-go/param"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 )
 
-func parseParams(paramString string, ext string) (paramsets [][]*convertapi.Param, err error) {
-	var newParams []*convertapi.Param
+func parseParams(paramString string, ext string) (paramsets [][]param.IParam, err error) {
+	var newParams []param.IParam
 	var parallel bool
 	for _, p := range strings.Split(paramString, ",") {
 		kv := strings.Split(p, ":")
@@ -26,23 +26,23 @@ func parseParams(paramString string, ext string) (paramsets [][]*convertapi.Para
 	return
 }
 
-func mergeParams(paramsets [][]*convertapi.Param, params []*convertapi.Param, parallel bool) (res [][]*convertapi.Param) {
+func mergeParams(paramsets [][]param.IParam, params []param.IParam, parallel bool) (res [][]param.IParam) {
 	if params == nil || len(params) == 0 {
 		return paramsets
 	}
 	if parallel {
-		for _, param := range params {
+		for _, p := range params {
 			if paramsets == nil || len(paramsets) == 0 {
-				res = append(res, []*convertapi.Param{param})
+				res = append(res, []param.IParam{p})
 			}
 			for _, set := range paramsets {
-				mergedSet := append(set, param)
+				mergedSet := append(set, p)
 				res = append(res, mergedSet)
 			}
 		}
 	} else {
 		if paramsets == nil || len(paramsets) == 0 {
-			return [][]*convertapi.Param{params}
+			return [][]param.IParam{params}
 		}
 		for i, set := range paramsets {
 			res[i] = append(set, params...)
@@ -51,7 +51,7 @@ func mergeParams(paramsets [][]*convertapi.Param, params []*convertapi.Param, pa
 	return
 }
 
-func newCaParams(k string, v string, ext string) (caParams []*convertapi.Param, parallel bool, err error) {
+func newCaParams(k string, v string, ext string) (caParams []param.IParam, parallel bool, err error) {
 	parallel = !strings.HasSuffix(k, "[]")
 	if !parallel {
 		k = strings.TrimSuffix(k, "[]")
@@ -76,11 +76,11 @@ func newCaParams(k string, v string, ext string) (caParams []*convertapi.Param, 
 			if !parallel {
 				name = fmt.Sprintf("%s[%d]", k, i)
 			}
-			caParam := convertapi.NewFilePathParam(name, p, nil)
+			caParam := param.NewPath(name, p, nil)
 			caParams = append(caParams, caParam)
 		}
 	} else if strings.HasPrefix(v, "<<") {
-		caParam := convertapi.NewReaderParam(k, os.Stdin, "file."+ext, nil)
+		caParam := param.NewReader(k, os.Stdin, "file."+ext, nil)
 		caParams = append(caParams, caParam)
 	} else {
 		var vals []string
@@ -95,7 +95,7 @@ func newCaParams(k string, v string, ext string) (caParams []*convertapi.Param, 
 			if !parallel {
 				name = fmt.Sprintf("%s[%d]", k, i)
 			}
-			caParam := convertapi.NewStringParam(name, val)
+			caParam := param.NewString(name, val)
 			caParams = append(caParams, caParam)
 		}
 	}
@@ -151,4 +151,20 @@ func isDir(path string) (isDir bool, err error) {
 		isDir = info.IsDir()
 	}
 	return
+}
+
+func prepare(paramset []param.IParam) error {
+	var wait []chan error
+	for i, p := range paramset {
+		wait = append(wait, make(chan error))
+		go func() { wait[i] <- p.Prepare() }()
+	}
+
+	for _, c := range wait {
+		if err := <-c; err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

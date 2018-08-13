@@ -1,11 +1,14 @@
 package main
 
 import (
-	"../convertapi-go"
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/ConvertAPI/convertapi-go"
+	"github.com/ConvertAPI/convertapi-go/config"
+	"github.com/ConvertAPI/convertapi-go/param"
 	"os"
+	"sync"
 )
 
 const Version = 1
@@ -17,8 +20,8 @@ func main() {
 	outfF := flag.String("outf", "", "output format e.g. pdf, jpg, zip")
 	secretF := flag.String("secret", "", "ConvertAPI user secret. Get your secret at https://www.convertapi.com/a")
 	proxyF := flag.String("proxy", "", "HTTP proxy server")
-	//saveF := flag.String("save", "", "path for saving files after conversion")
-	paramsF := flag.String("params", "", "conversion parameters, see full list of available parameters at https://www.convertapi.com")
+	outF := flag.String("out", "url", "place where to output converted files. Allowed values: [ url | @<path> | stdout ]. Save to directory example: --out=\"@/path/to/dir\" ")
+	paramsF := flag.String("params", "", "conversion parameters, see full list of available parameters at https://www.convertapi.com .  Allowed values: [ value | @<path> | @< | < ]. Usage example: --params=\"file:@/path/to/file.doc, pdftitle:My title\"")
 	verF := flag.Bool("version", false, "output version information and exit")
 	helpF := flag.Bool(HelpFlagName, false, "display this help and exit")
 	flag.Parse()
@@ -41,24 +44,37 @@ func main() {
 	if *secretF == "" {
 		printError(errors.New("ConvertAPI user secret is not set. Please set --secret parameter. Get your secret at https://www.convertapi.com/a"), 1)
 	} else {
-		convertapi.Default.Secret = *secretF
+		config.Default.Secret = *secretF
 	}
 
 	if *paramsF == "" {
 		printError(errors.New("Conversion parameters are not set. Please set --params parameter."), 1)
 	} else {
 		if paramsets, err := parseParams(*paramsF, *infF); err == nil {
-			fmt.Printf("%+v\n", paramsets)
-			var conv []*convertapi.Result
+			wg := &sync.WaitGroup{}
+			//fmt.Printf("%+v\n", paramsets)
 			for _, set := range paramsets {
-				conv = append(conv, convertapi.Convert(*infF, *outfF, set, nil))
+				//fmt.Println("Uploading ", set)
+				if err := prepare(set); err != nil {
+					printError(err, 1)
+				}
+				//fmt.Println("Converting ", set)
+
+				go func(set []param.IParam) {
+					wg.Add(1)
+					defer wg.Done()
+					res := convertapi.Convert(*infF, *outfF, set, nil)
+					if files, err := res.Files(); err == nil {
+						//fmt.Println("Downloading ", set)
+						for _, file := range files {
+							output(file, *outF)
+						}
+					} else {
+						printError(err, 1)
+					}
+				}(set)
 			}
-			fmt.Println("Konvertinam")
-			for _, res := range conv {
-				_, err := res.ToPath("/tmp")
-				fmt.Println(err)
-			}
-			fmt.Println("DONE")
+			wg.Wait()
 		} else {
 			printError(fmt.Errorf("Conversion parameters are invalid. %s", err), 1)
 		}
@@ -80,18 +96,3 @@ func printVersion() {
 	fmt.Printf("%s %d\n", Name, Version)
 	os.Exit(0)
 }
-
-/*
-
-convertapi doc pdf --file=@/tmp/src.doc --save=/tmp/dst.pdf
-convertapi doc jpg --file=@/tmp/src.doc --save=/tmp
-convertapi pdf merge --files[]=@/tmp/pdfs/* --save=/tmp/dst.pdf
-convertapi pdf merge --files[]=@/tmp/pdfs/pirst.pdf;@/tmp/pdfs/second.pdf --save=/tmp/dst.pdf
-cat /tmp/src.pdf | convertapi pdf compress --file=@< --save=/tmp/dst.pdf
-convertapi doc jpg --file=@/tmp/src.doc | convertapi any zip --files[]=< --save=/tmp/dst.zip
-cat /tmp/src.pdf | convertapi any zip --files[]=@<myfile.pdf --save=/tmp/dst.zip
-
-convertapi --inf=pdf --outf=merge --save=/tmp/dst.pdf --params={"files[]":"@/tmp/pdfs/*"}
-
-
-*/
