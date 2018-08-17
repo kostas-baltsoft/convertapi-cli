@@ -15,7 +15,7 @@ func parseParams(paramString string, ext string) (paramsets [][]param.IParam, er
 	var newParams []param.IParam
 	var parallel bool
 	for _, p := range strings.Split(paramString, ",") {
-		kv := strings.Split(p, ":")
+		kv := strings.SplitN(p, ":", 2)
 		k := strings.TrimSpace(kv[0])
 		v := strings.TrimSpace(kv[1])
 		if newParams, parallel, err = newCaParams(k, v, ext); err != nil {
@@ -51,54 +51,52 @@ func mergeParams(paramsets [][]param.IParam, params []param.IParam, parallel boo
 	return
 }
 
-func newCaParams(k string, v string, ext string) (caParams []param.IParam, parallel bool, err error) {
-	parallel = !strings.HasSuffix(k, "[]")
+func newCaParams(key string, value string, ext string) (caParams []param.IParam, parallel bool, err error) {
+	parallel = !strings.HasSuffix(key, "[]")
 	if !parallel {
-		k = strings.TrimSuffix(k, "[]")
+		key = strings.TrimSuffix(key, "[]")
 	}
 
-	if strings.HasPrefix(v, "@") {
-		v = strings.TrimPrefix(v, "@")
-
-		paths := []string{}
-		if strings.HasPrefix(v, "<") {
-			paths, err = stdinLines()
-		} else {
-			paths = strings.Split(v, ";")
-		}
-
-		if paths, err = flattenPaths(paths, ext); err != nil {
-			return
-		}
-
-		for i, p := range paths {
-			name := k
-			if !parallel {
-				name = fmt.Sprintf("%s[%d]", k, i)
+	var i int
+	for _, v := range strings.Split(value, ";") {
+		vals := []string{strings.TrimSpace(v)}
+		var paramType string
+		if strings.HasPrefix(v, "@") {
+			paramType = "path"
+			v = strings.TrimSpace(strings.TrimPrefix(v, "@"))
+			paths := []string{v}
+			if strings.HasPrefix(v, "<") {
+				paths, err = stdinLines()
 			}
-			caParam := param.NewPath(name, p, nil)
-			caParams = append(caParams, caParam)
-		}
-	} else if strings.HasPrefix(v, "<<") {
-		caParam := param.NewReader(k, os.Stdin, "file."+ext, nil)
-		caParams = append(caParams, caParam)
-	} else {
-		var vals []string
-		if strings.HasPrefix(v, "<") {
-			vals, err = stdinLines()
+			if vals, err = flattenPaths(paths, ext); err != nil {
+				return
+			}
+		} else if strings.HasPrefix(v, "<<") {
+			paramType = "stdin"
 		} else {
-			vals = []string{v}
+			paramType = "str"
+			if strings.HasPrefix(v, "<") {
+				vals, err = stdinLines()
+			}
 		}
 
-		for i, val := range vals {
-			name := k
+		for _, val := range vals {
+			name := key
 			if !parallel {
-				name = fmt.Sprintf("%s[%d]", k, i)
+				name = fmt.Sprintf("%s[%d]", key, i)
+				i += 1
 			}
-			caParam := param.NewString(name, val)
-			caParams = append(caParams, caParam)
+			switch paramType {
+			case "path":
+				caParams = append(caParams, param.NewPath(name, val, nil))
+			case "stdin":
+				caParams = append(caParams, param.NewReader(key, os.Stdin, "file."+ext, nil))
+			default:
+				caParams = append(caParams, param.NewString(name, val))
+			}
 		}
 	}
+
 	return
 }
 
@@ -157,7 +155,7 @@ func prepare(paramset []param.IParam) error {
 	var wait []chan error
 	for i, p := range paramset {
 		wait = append(wait, make(chan error))
-		go func() { wait[i] <- p.Prepare() }()
+		go func(c chan error, p param.IParam) { c <- p.Prepare() }(wait[i], p)
 	}
 
 	for _, c := range wait {
