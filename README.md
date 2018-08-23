@@ -211,7 +211,7 @@ convertapi --iformat=pptx --oformat=pdf --params="file:https://example.com/myfil
 
 Convert from DOCX to JPG and ZIP result JPG files
 ```shell
-convertapi --iformat=docx --oformat=jpg --params="file:@/path/to/test.docx" --secret=<YOUR_SECRET_HERE> \
+convertapi --iformat=docx --oformat=jpg --params="file:@/path/to/test.docx" --secret=<your api secret> \
     | convertapi --iformat=jpg --oformat=zip --params="files[]:<" --out="@/path/to/result.zip" --secret=<your api secret>
 ```
 
