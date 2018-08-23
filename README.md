@@ -48,7 +48,7 @@ Secret will be used in every CLI utility run.
 Before we go in to details, short usage example how to convert DOCX file to PDF.
 
 ```shell
-convertapi --iformat=docx --oformat=pdf --params="file:@/path/to/test.docx" --out="@/path/to/resultdir" --secret=<YOUR_SECRET_HERE>
+convertapi --iformat=docx --oformat=pdf --params="file:@/path/to/test.docx" --out="@/path/to/resultdir" --secret=<your api secret>
 ```
 
 ### Arguments documentation 
@@ -196,12 +196,12 @@ Displays short usage information.
 
 Convert local DOCX file to PDF A3 page size saving result to `/path/to/resultdir`
 ```shell
-convertapi --iformat=docx --oformat=pdf --params="file:@/path/to/test.docx, pagesize:a3" --out="@/path/to/resultdir" --secret=<YOUR_SECRET_HERE>
+convertapi --iformat=docx --oformat=pdf --params="file:@/path/to/test.docx, pagesize:a3" --out="@/path/to/resultdir" --secret=<your api secret>
 ```
 
 Merge all PDF files that are in `/path/to/dir` directory and save it locally
 ```shell
-convertapi --iformat=pdf --oformat=merge --params="files[]:@/path/to/dir" --out="@/path/to/resultdir" --secret=<YOUR_SECRET_HERE>
+convertapi --iformat=pdf --oformat=merge --params="files[]:@/path/to/dir" --out="@/path/to/resultdir" --secret=<your api secret>
 ```
 
 Convert remote PPTX file to PDF saving result to `/path/to/result.pdf`
@@ -212,19 +212,19 @@ convertapi --iformat=pptx --oformat=pdf --params="file:https://example.com/myfil
 Convert from DOCX to JPG and ZIP result JPG files
 ```shell
 convertapi --iformat=docx --oformat=jpg --params="file:@/path/to/test.docx" --secret=<YOUR_SECRET_HERE> \
-    | convertapi --iformat=jpg --oformat=zip --params="files[]:<" --out="@/path/to/result.zip" --secret=<YOUR_SECRET_HERE>
+    | convertapi --iformat=jpg --oformat=zip --params="files[]:<" --out="@/path/to/result.zip" --secret=<your api secret>
 ```
 
 Convert DOCX to PDF and save result in remote server over SSH
 ```shell
-convertapi --iformat=docx --oformat=pdf --params="file:@/path/to/test.docx" --out=stdout --secret=<YOUR_SECRET_HERE> \
+convertapi --iformat=docx --oformat=pdf --params="file:@/path/to/test.docx" --out=stdout --secret=<your api secret> \
     | ssh user@myserver "cat >/tmp/my.pdf"
 ```
 
 Get PDF file from remote server, convert it to JPG and save result locally
 ```shell
 ssh user@server "cat /tmp/my.pdf" \
-    | convertapi --iformat=pdf --oformat=jpg --params="file:<<" --out=@/path/to/resultdir --secret=<YOUR_SECRET_HERE>
+    | convertapi --iformat=pdf --oformat=jpg --params="file:<<" --out=@/path/to/resultdir --secret=<your api secret>
 ```
 
 Do PDF->JPG and DOCX->JPG conversions in parallel and ZIP result JPG files
@@ -232,14 +232,14 @@ Do PDF->JPG and DOCX->JPG conversions in parallel and ZIP result JPG files
 ( \
     convertapi --iformat=pdf --oformat=jpg --params="file:/path/to/dir" --secret=<YOUR_SECRET_HERE> \
     & convertapi --iformat=docx --oformat=jpg --params="file:@/path/to/dir" --secret=<YOUR_SECRET_HERE> \
-) | convertapi --iformat=jpg --oformat=zip --params="files[]:<" --out=@/path/to/resultdir  --secret=<YOUR_SECRET_HERE>
+) | convertapi --iformat=jpg --oformat=zip --params="files[]:<" --out=@/path/to/resultdir  --secret=<your api secret>
 ```
 
 Merge PDFs files from various locations: remote SSH server, local file, local directory, remote HTTP server.
 Save result file to remote SSH server. All this done without writing to disk. 
 ```shell
 ssh user@server1 "cat /tmp/my.pdf" \
-    | convertapi --iformat=pdf --oformat=merge --params="files[]:<<;@/path/to/test.pdf;@/path/to/dir;https://example.com/my.pdf" --out=stdout --secret=<YOUR_SECRET_HERE> \
+    | convertapi --iformat=pdf --oformat=merge --params="files[]:<<;@/path/to/test.pdf;@/path/to/dir;https://example.com/my.pdf" --out=stdout --secret=<your api secret> \
     | ssh user@myserver2 "cat >/tmp/my.pdf"
 ```
 
