@@ -206,7 +206,7 @@ convertapi --iformat=pdf --oformat=merge --params="files[]:@/path/to/dir" --out=
 
 Convert remote PPTX file to PDF saving result to `/path/to/result.pdf`
 ```shell
-convertapi --iformat=pptx --oformat=pdf --params="file:https://example.com/myfile.pptx" --out="@/path/to/result.pdf" --secret=<YOUR_SECRET_HERE>
+convertapi --iformat=pptx --oformat=pdf --params="file:https://example.com/myfile.pptx" --out="@/path/to/result.pdf" --secret=<your api secret>
 ```
 
 Convert from DOCX to JPG and ZIP result JPG files
@@ -230,8 +230,8 @@ ssh user@server "cat /tmp/my.pdf" \
 Do PDF->JPG and DOCX->JPG conversions in parallel and ZIP result JPG files
 ```shell
 ( \
-    convertapi --iformat=pdf --oformat=jpg --params="file:/path/to/dir" --secret=<YOUR_SECRET_HERE> \
-    & convertapi --iformat=docx --oformat=jpg --params="file:@/path/to/dir" --secret=<YOUR_SECRET_HERE> \
+    convertapi --iformat=pdf --oformat=jpg --params="file:/path/to/dir" --secret=<your api secret> \
+    & convertapi --iformat=docx --oformat=jpg --params="file:@/path/to/dir" --secret=<your api secret> \
 ) | convertapi --iformat=jpg --oformat=zip --params="files[]:<" --out=@/path/to/resultdir  --secret=<your api secret>
 ```
 
